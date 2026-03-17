@@ -1130,6 +1130,10 @@ public final class InputLogic {
             mSpaceState = SpaceState.DOUBLE;
             inputTransaction.setRequiresUpdateSuggestions();
             StatsUtils.onDoubleSpacePeriod();
+        } else if (tryConvertDashSpaceToArrow(event, inputTransaction)) {
+            // Arrow conversion succeeded - set space state to WEAK for trailing space
+            mSpaceState = SpaceState.WEAK;
+            inputTransaction.setRequiresUpdateSuggestions();
         } else if (swapWeakSpace && trySwapSwapperAndSpace(event, inputTransaction)) {
             if(inputTransaction.mSpaceState == SpaceState.ANTIPHANTOM) {
                 mSpaceState = SpaceState.ANTIPHANTOM;
@@ -1589,6 +1593,38 @@ public final class InputLogic {
                 (stripSpace ? "" : " ");
 
         mConnection.commitText(text, 1);
+        inputTransaction.requireShiftUpdate(InputTransaction.SHIFT_UPDATE_NOW);
+        return true;
+    }
+
+    /**
+     * Convert "- >" to " -> " when user types '>'.
+     * Only converts automatic spaces, not manually typed ones.
+     */
+    private boolean tryConvertDashSpaceToArrow(final Event event,
+            final InputTransaction inputTransaction) {
+        if (event.mCodePoint != Constants.CODE_CLOSING_ANGLE_BRACKET) {
+            return false;
+        }
+
+        final int codePointBeforeCursor = mConnection.getCodePointBeforeCursor();
+        final int codePointTwoBack = mConnection.getNthCodePointBeforeCursor(1);
+
+        if (codePointBeforeCursor != Constants.CODE_SPACE ||
+            codePointTwoBack != Constants.CODE_DASH) {
+            return false;
+        }
+
+        // Only convert automatic spaces, not manually typed ones
+        if (inputTransaction.mSpaceState != SpaceState.WEAK &&
+            inputTransaction.mSpaceState != SpaceState.SWAP_PUNCTUATION &&
+            inputTransaction.mSpaceState != SpaceState.ANTIPHANTOM) {
+            return false;
+        }
+
+        mConnection.deleteTextBeforeCursor(1);
+        mConnection.commitText("> ", 1);
+
         inputTransaction.requireShiftUpdate(InputTransaction.SHIFT_UPDATE_NOW);
         return true;
     }
